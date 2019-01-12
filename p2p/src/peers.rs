@@ -278,7 +278,7 @@ impl Peers {
 		}
 
 		if let Some(peer) = self.get_connected_peer(peer_addr) {
-			debug!("Banning peer {}", peer_addr);
+			debug!("Banning peer {} due to {:?}", peer_addr, ban_reason);
 			// setting peer status will get it removed at the next clean_peer
 			peer.send_ban_reason(ban_reason);
 			peer.set_banned();
