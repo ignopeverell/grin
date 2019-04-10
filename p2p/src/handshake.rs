@@ -79,7 +79,7 @@ impl Handshake {
 			genesis: self.genesis,
 			total_difficulty: total_difficulty,
 			sender_addr: self_addr,
-			receiver_addr: peer_addr,
+			receiver_addr: peer_addr.clone(),
 			user_agent: USER_AGENT.to_string(),
 		};
 
@@ -103,7 +103,7 @@ impl Handshake {
 
 		// If denied then we want to close the connection
 		// (without providing our peer with any details why).
-		if Peer::is_denied(&self.config, peer_info.addr) {
+		if Peer::is_denied(&self.config, &peer_info.addr) {
 			return Err(Error::ConnectionClose);
 		}
 
@@ -135,7 +135,7 @@ impl Handshake {
 		} else {
 			// check the nonce to see if we are trying to connect to ourselves
 			let nonces = self.nonces.read();
-			let addr = resolve_peer_addr(hand.sender_addr, &conn);
+			let addr = resolve_peer_addr(hand.sender_addr.clone(), &conn);
 			if nonces.contains(&hand.nonce) {
 				// save ip addresses of ourselves
 				let mut addrs = self.addrs.write();
@@ -161,7 +161,7 @@ impl Handshake {
 		// so check if we are configured to explicitly allow or deny it.
 		// If denied then we want to close the connection
 		// (without providing our peer with any details why).
-		if Peer::is_denied(&self.config, peer_info.addr) {
+		if Peer::is_denied(&self.config, &peer_info.addr) {
 			return Err(Error::ConnectionClose);
 		}
 
@@ -205,8 +205,6 @@ fn resolve_peer_addr(advertised: PeerAddr, conn: &TcpStream) -> PeerAddr {
 				advertised
 			}
 		}
-		PeerAddr::I2p(_) => {
-			advertised
-		}
+		PeerAddr::I2p(_) => advertised,
 	}
 }

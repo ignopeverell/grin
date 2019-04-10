@@ -138,11 +138,11 @@ impl Peer {
 	/// system.
 	pub fn start(&mut self, conn: TcpStream) {
 		let adapter = Arc::new(self.tracking_adapter.clone());
-		let handler = Protocol::new(adapter, self.info.clone());
+		let handler = Protocol::new(adapter, self.info.addr.clone());
 		self.connection = Some(Mutex::new(conn::listen(conn, handler)));
 	}
 
-	pub fn is_denied(config: &P2PConfig, peer_addr: PeerAddr) -> bool {
+	pub fn is_denied(config: &P2PConfig, peer_addr: &PeerAddr) -> bool {
 		if let Some(ref denied) = config.peers_deny {
 			if denied.contains(&peer_addr) {
 				debug!(
