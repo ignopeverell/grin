@@ -224,7 +224,7 @@ fn monitor_peers(
 	// take a random defunct peer and mark it healthy: over a long period any
 	// peer will see another as defunct eventually, gives us a chance to retry
 	if defuncts.len() > 0 {
-		thread_rng().shuffle(&mut defuncts);
+		defuncts.shuffle(&mut thread_rng());
 		let _ = peers.update_state(&defuncts[0].addr, p2p::State::Healthy);
 	}
 

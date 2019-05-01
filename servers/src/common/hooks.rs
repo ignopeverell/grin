@@ -39,11 +39,11 @@ use tokio::runtime::Runtime;
 pub fn init_net_hooks(config: &ServerConfig) -> Vec<Box<dyn NetEvents + Send + Sync>> {
 	let mut list: Vec<Box<NetEvents + Send + Sync>> = Vec::new();
 	list.push(Box::new(EventLogger));
-	if config.webhook_config.block_received_url.is_some()
-		|| config.webhook_config.tx_received_url.is_some()
-		|| config.webhook_config.header_received_url.is_some()
+	if config.webhooks_config.block_received_url.is_some()
+		|| config.webhooks_config.tx_received_url.is_some()
+		|| config.webhooks_config.header_received_url.is_some()
 	{
-		list.push(Box::new(WebHook::from_config(&config.webhook_config)));
+		list.push(Box::new(WebHook::from_config(&config.webhooks_config)));
 	}
 	list
 }
@@ -52,8 +52,8 @@ pub fn init_net_hooks(config: &ServerConfig) -> Vec<Box<dyn NetEvents + Send + S
 pub fn init_chain_hooks(config: &ServerConfig) -> Vec<Box<dyn ChainEvents + Send + Sync>> {
 	let mut list: Vec<Box<ChainEvents + Send + Sync>> = Vec::new();
 	list.push(Box::new(EventLogger));
-	if config.webhook_config.block_accepted_url.is_some() {
-		list.push(Box::new(WebHook::from_config(&config.webhook_config)));
+	if config.webhooks_config.block_accepted_url.is_some() {
+		list.push(Box::new(WebHook::from_config(&config.webhooks_config)));
 	}
 	list
 }

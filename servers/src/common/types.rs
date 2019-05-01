@@ -193,6 +193,10 @@ pub struct ServerConfig {
 	/// Configuration for the mining daemon
 	#[serde(default)]
 	pub stratum_mining_config: Option<StratumServerConfig>,
+
+	/// WebHooks configuration
+	#[serde(default)]
+	pub webhooks_config: WebHooksConfig,
 }
 
 impl Default for ServerConfig {
@@ -214,6 +218,7 @@ impl Default for ServerConfig {
 			run_tui: Some(true),
 			run_test_miner: Some(false),
 			test_miner_wallet_url: None,
+			webhooks_config: WebHooksConfig::default(),
 		}
 	}
 }
@@ -511,7 +516,7 @@ impl DandelionEpoch {
 			.expect("stem_probability config missing");
 		self.is_stem = rng.gen_range(0, 100) < stem_probability;
 
-		let addr = self.relay_peer.clone().map(|p| p.info.addr);
+		let addr = self.relay_peer.clone().map(|p| p.info.addr.clone());
 		info!(
 			"DandelionEpoch: next_epoch: is_stem: {} ({}%), relay: {:?}",
 			self.is_stem, stem_probability, addr
@@ -543,7 +548,7 @@ impl DandelionEpoch {
 			self.relay_peer = peers.outgoing_connected_peers().first().cloned();
 			info!(
 				"DandelionEpoch: relay_peer: new peer chosen: {:?}",
-				self.relay_peer.clone().map(|p| p.info.addr)
+				self.relay_peer.clone().map(|p| p.info.addr.clone())
 			);
 		}
 
