@@ -19,6 +19,7 @@ use std::io::{self, Read, Write};
 use std::net::{
 	IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, SocketAddrV4, SocketAddrV6, TcpStream,
 };
+use std::path::PathBuf;
 use std::str;
 
 use std::sync::mpsc;

@@ -52,7 +52,7 @@ impl MessageHandler for Protocol {
 		// If we received a msg from a banned peer then log and drop it.
 		// If we are getting a lot of these then maybe we are not cleaning
 		// banned peers up correctly?
-		if adapter.is_banned(self.peer_info.addr) {
+		if adapter.is_banned(self.peer_info.addr.clone()) {
 			debug!(
 				"handler: consume: peer {:?} banned, received: {:?}, dropping.",
 				self.peer_info.addr, msg.header.msg_type,
@@ -63,7 +63,11 @@ impl MessageHandler for Protocol {
 		match msg.header.msg_type {
 			Type::Ping => {
 				let ping: Ping = msg.body()?;
-				adapter.peer_difficulty(self.addr.clone(), ping.total_difficulty, ping.height);
+				adapter.peer_difficulty(
+					self.peer_info.addr.clone(),
+					ping.total_difficulty,
+					ping.height,
+				);
 
 				Ok(Some(Response::new(
 					Type::Pong,
@@ -77,7 +81,11 @@ impl MessageHandler for Protocol {
 
 			Type::Pong => {
 				let pong: Pong = msg.body()?;
-				adapter.peer_difficulty(self.addr.clone(), pong.total_difficulty, pong.height);
+				adapter.peer_difficulty(
+					self.peer_info.addr.clone(),
+					pong.total_difficulty,
+					pong.height,
+				);
 				Ok(None)
 			}
 
@@ -93,7 +101,7 @@ impl MessageHandler for Protocol {
 					"handle_payload: received tx kernel: {}, msg_len: {}",
 					h, msg.header.msg_len
 				);
-				adapter.tx_kernel_received(h, self.addr.clone())?;
+				adapter.tx_kernel_received(h, &self.peer_info)?;
 				Ok(None)
 			}
 
@@ -155,7 +163,7 @@ impl MessageHandler for Protocol {
 
 				// we can't know at this level whether we requested the block or not,
 				// the boolean should be properly set in higher level adapter
-				adapter.block_received(b, self.addr.clone(), false)?;
+				adapter.block_received(b, &self.peer_info, false)?;
 				Ok(None)
 			}
 
@@ -176,7 +184,7 @@ impl MessageHandler for Protocol {
 				);
 				let b: core::CompactBlock = msg.body()?;
 
-				adapter.compact_block_received(b, self.addr.clone())?;
+				adapter.compact_block_received(b, &self.peer_info)?;
 				Ok(None)
 			}
 
@@ -197,7 +205,7 @@ impl MessageHandler for Protocol {
 			// we can go request it from some of our peers
 			Type::Header => {
 				let header: core::BlockHeader = msg.body()?;
-				adapter.header_received(header, self.addr.clone())?;
+				adapter.header_received(header, &self.peer_info)?;
 				Ok(None)
 			}
 
@@ -217,7 +225,7 @@ impl MessageHandler for Protocol {
 						headers.push(header);
 						total_bytes_read += bytes_read;
 					}
-					adapter.headers_received(&headers, self.addr.clone())?;
+					adapter.headers_received(&headers, &self.peer_info)?;
 				}
 
 				// Now check we read the correct total number of bytes off the stream.
@@ -340,7 +348,7 @@ impl MessageHandler for Protocol {
 				let tmp_zip = File::open(tmp.clone())?;
 				let res = self
 					.adapter
-					.txhashset_write(sm_arch.hash, tmp_zip, self.addr.clone())?;
+					.txhashset_write(sm_arch.hash, tmp_zip, &self.peer_info)?;
 
 				debug!(
 					"handle_payload: txhashset archive for {} at {}, DONE. Data Ok: {}",

@@ -16,6 +16,7 @@ use crate::util::{Mutex, RwLock};
 use std::fmt;
 use std::fs::File;
 use std::net::Shutdown;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::chain;
@@ -137,7 +138,7 @@ impl Peer {
 	/// system.
 	pub fn start(&mut self, conn: Stream) {
 		let adapter = Arc::new(self.tracking_adapter.clone());
-		let handler = Protocol::new(adapter, self.info.addr.clone());
+		let handler = Protocol::new(adapter, self.info.clone());
 		self.connection = Some(Mutex::new(conn::listen(conn, handler)));
 	}
 

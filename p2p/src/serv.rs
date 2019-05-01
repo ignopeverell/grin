@@ -29,8 +29,8 @@ use crate::peer::Peer;
 use crate::peers::Peers;
 use crate::store::PeerStore;
 use crate::types::{
-	Capabilities, ChainAdapter, Error, NetAdapter, P2PConfig, PeerAddr, ReasonForBan, Stream,
-	TxHashSetRead,
+	Capabilities, ChainAdapter, Error, NetAdapter, P2PConfig, PeerAddr, PeerInfo, ReasonForBan,
+	Stream, TxHashSetRead,
 };
 use crate::util::{Mutex, StopState};
 use chrono::prelude::{DateTime, Utc};
@@ -65,7 +65,7 @@ impl Server {
 			config: config.clone(),
 			capabilities: capab,
 			handshake: Arc::new(Handshake::new(genesis, config.clone())),
-			peers: Arc::new(Peers::new(PeerStore::new(db_env)?, adapter, config)),
+			peers: Arc::new(Peers::new(PeerStore::new(db_root)?, adapter, config)),
 			i2p_session,
 			stop_state,
 		})

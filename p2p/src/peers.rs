@@ -41,6 +41,7 @@ pub struct Peers {
 	store: PeerStore,
 	peers: RwLock<HashMap<PeerAddr, Arc<Peer>>>,
 	config: P2PConfig,
+	dandelion_relay: RwLock<Option<(i64, Arc<Peer>)>>,
 }
 
 impl Peers {
@@ -49,6 +50,7 @@ impl Peers {
 			adapter,
 			store,
 			config,
+			dandelion_relay: RwLock::new(None),
 			peers: RwLock::new(HashMap::new()),
 		}
 	}
@@ -97,7 +99,7 @@ impl Peers {
 			.dandelion_peer
 			.clone()
 			.and_then(|ip| peers.iter().find(|x| x.info.addr == ip))
-			.or(thread_rng().choose(&peers));
+			.or(peers.choose(&mut thread_rng()));
 
 		match peer {
 			Some(peer) => self.set_dandelion_relay(peer),
@@ -547,17 +549,14 @@ impl ChainAdapter for Peers {
 		was_requested: bool,
 	) -> Result<bool, chain::Error> {
 		let hash = b.hash();
-		if !self
-			.adapter
-			.block_received(b, peer_addr.clone(), was_requested)?
-		{
+		if !self.adapter.block_received(b, peer_info, was_requested)? {
 			// if the peer sent us a block that's intrinsically bad
 			// they are either mistaken or malevolent, both of which require a ban
 			debug!(
 				"Received a bad block {} from  {}, the peer will be banned",
 				hash, peer_info.addr,
 			);
-			self.ban_peer(&peer_addr, ReasonForBan::BadBlock);
+			self.ban_peer(&peer_info.addr, ReasonForBan::BadBlock);
 			Ok(false)
 		} else {
 			Ok(true)
@@ -570,14 +569,14 @@ impl ChainAdapter for Peers {
 		peer_info: &PeerInfo,
 	) -> Result<bool, chain::Error> {
 		let hash = cb.hash();
-		if !self.adapter.compact_block_received(cb, peer_addr.clone())? {
+		if !self.adapter.compact_block_received(cb, peer_info)? {
 			// if the peer sent us a block that's intrinsically bad
 			// they are either mistaken or malevolent, both of which require a ban
 			debug!(
 				"Received a bad compact block {} from  {}, the peer will be banned",
 				hash, peer_info.addr
 			);
-			self.ban_peer(&peer_addr, ReasonForBan::BadCompactBlock);
+			self.ban_peer(&peer_info.addr, ReasonForBan::BadCompactBlock);
 			Ok(false)
 		} else {
 			Ok(true)
@@ -589,10 +588,10 @@ impl ChainAdapter for Peers {
 		bh: core::BlockHeader,
 		peer_info: &PeerInfo,
 	) -> Result<bool, chain::Error> {
-		if !self.adapter.header_received(bh, peer_addr.clone())? {
+		if !self.adapter.header_received(bh, peer_info)? {
 			// if the peer sent us a block header that's intrinsically bad
 			// they are either mistaken or malevolent, both of which require a ban
-			self.ban_peer(&peer_addr, ReasonForBan::BadBlockHeader);
+			self.ban_peer(&peer_info.addr, ReasonForBan::BadBlockHeader);
 			Ok(false)
 		} else {
 			Ok(true)
@@ -604,10 +603,10 @@ impl ChainAdapter for Peers {
 		headers: &[core::BlockHeader],
 		peer_info: &PeerInfo,
 	) -> Result<bool, chain::Error> {
-		if !self.adapter.headers_received(headers, peer_addr.clone())? {
+		if !self.adapter.headers_received(headers, &peer_info)? {
 			// if the peer sent us a block header that's intrinsically bad
 			// they are either mistaken or malevolent, both of which require a ban
-			self.ban_peer(&peer_addr, ReasonForBan::BadBlockHeader);
+			self.ban_peer(&peer_info.addr, ReasonForBan::BadBlockHeader);
 			Ok(false)
 		} else {
 			Ok(true)
@@ -636,15 +635,12 @@ impl ChainAdapter for Peers {
 		txhashset_data: File,
 		peer_info: &PeerInfo,
 	) -> Result<bool, chain::Error> {
-		if !self
-			.adapter
-			.txhashset_write(h, txhashset_data, peer_addr.clone())?
-		{
+		if !self.adapter.txhashset_write(h, txhashset_data, peer_info)? {
 			debug!(
 				"Received a bad txhashset data from {}, the peer will be banned",
 				peer_info.addr
 			);
-			self.ban_peer(&peer_addr, ReasonForBan::BadTxHashSet);
+			self.ban_peer(&peer_info.addr, ReasonForBan::BadTxHashSet);
 			Ok(false)
 		} else {
 			Ok(true)
