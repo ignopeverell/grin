@@ -934,7 +934,7 @@ fn replicate_tx_fluff_failure() {
 
 	// Server 2 (another node)
 	let mut s2_config = framework::config(3001, "tx_fluff", 3001);
-	s2_config.p2p_config.seeds = Some(vec![PeerAddr(
+	s2_config.p2p_config.seeds = Some(vec![PeerAddr::Socket(
 		"127.0.0.1:13000".to_owned().parse().unwrap(),
 	)]);
 	s2_config.dandelion_config.embargo_secs = Some(10);
@@ -947,7 +947,7 @@ fn replicate_tx_fluff_failure() {
 	for i in 0..dl_nodes {
 		// (create some stem nodes)
 		let mut s_config = framework::config(3002 + i, "tx_fluff", 3002 + i);
-		s_config.p2p_config.seeds = Some(vec![PeerAddr(
+		s_config.p2p_config.seeds = Some(vec![PeerAddr::Socket(
 			"127.0.0.1:13000".to_owned().parse().unwrap(),
 		)]);
 		s_config.dandelion_config.embargo_secs = Some(10);

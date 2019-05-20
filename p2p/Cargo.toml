@@ -30,3 +30,4 @@ grin_util = { path = "../util", version = "1.0.3" }
 
 [dev-dependencies]
 grin_pool = { path = "../pool", version = "1.0.3" }
+toml = "0.4"
