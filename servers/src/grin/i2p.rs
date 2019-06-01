@@ -17,7 +17,10 @@
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
+
+use which;
 
 use i2p::net::{I2pAddr, I2pSocketAddr};
 use i2p::{SamConnection, Session};
@@ -53,7 +56,12 @@ pub fn init(config: &mut ServerConfig) -> Option<Arc<Session>> {
 }
 
 fn start_i2pd() {
-	unimplemented!()
+	let i2pd_path = which::which("i2pd").unwrap();
+	Command::new(i2pd_path.to_str().unwrap())
+		.spawn()
+		.expect("i2pd failed to start. Ensure i2pd is on your system path.");
+	// allow i2pd a moment to startup before attempting SAM connection
+	std::thread::sleep(std::time::Duration::from_millis(100));
 }
 
 fn load_keys(i2p_socket: &str, config: &ServerConfig) -> (I2pSocketAddr, String) {
@@ -65,6 +73,10 @@ fn load_keys(i2p_socket: &str, config: &ServerConfig) -> (I2pSocketAddr, String)
 	i2p_privkey.push(PRIVKEY_FILE);
 	let mut i2p_pubkey = i2p_root.clone();
 	i2p_pubkey.push(PUBKEY_FILE);
+
+	if !i2p_root.exists() {
+		fs::create_dir_all(i2p_root.clone()).expect("could not create I2P keyfile directory.");
+	}
 
 	let (pubkey, privkey): (String, String) = if i2p_pubkey.as_path().exists()
 		&& i2p_privkey.as_path().exists()

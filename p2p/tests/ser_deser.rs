@@ -14,7 +14,9 @@
 
 use grin_p2p as p2p;
 
+use i2p::net::{I2pAddr, I2pSocketAddr};
 use num::FromPrimitive;
+use toml;
 
 // Test that Healthy == 0.
 #[test]
@@ -41,6 +43,45 @@ fn test_type_enum() {
 }
 
 #[test]
+fn test_peer_addr_enum() {
+	let i2p_peer = p2p::PeerAddr::I2p(I2pSocketAddr::new(I2pAddr::new("some.i2p"), 9090));
+	let b32_peer = p2p::PeerAddr::I2p(I2pSocketAddr::new(
+		I2pAddr::new("7ygcsgwmstx4eil66vlaltb3usznxkkrd4dv425jf3qqrrflru3a.b32.i2p"),
+		9090,
+	));
+	let sock_peer = p2p::PeerAddr::Socket("127.0.0.1:9090".to_string().parse().unwrap());
+
+	let de_i2p_peer: p2p::PeerAddr =
+		toml::from_str(toml::to_string(&i2p_peer.clone()).unwrap().as_str()).unwrap();
+	let de_b32_peer: p2p::PeerAddr =
+		toml::from_str(toml::to_string(&b32_peer.clone()).unwrap().as_str()).unwrap();
+	let de_sock_peer: p2p::PeerAddr =
+		toml::from_str(toml::to_string(&sock_peer.clone()).unwrap().as_str()).unwrap();
+
+	assert_eq!(de_i2p_peer, i2p_peer);
+	assert_eq!(de_b32_peer, b32_peer);
+	assert_eq!(de_sock_peer, sock_peer);
+}
+
+#[test]
+fn test_i2p_mode_enum() {
+	let i2p_disabled = p2p::I2pMode::Disabled;
+	let i2p_enabled = p2p::I2pMode::Enabled {
+		autostart: false,
+		exclusive: true,
+		addr: "127.0.0.1:7656".to_string(),
+	};
+
+	let de_i2p_di: p2p::I2pMode =
+		toml::from_str(toml::to_string(&i2p_disabled.clone()).unwrap().as_str()).unwrap();
+	let de_i2p_en: p2p::I2pMode =
+		toml::from_str(toml::to_string(&i2p_enabled.clone()).unwrap().as_str()).unwrap();
+
+	assert_eq!(de_i2p_di, i2p_disabled);
+	assert_eq!(de_i2p_en, i2p_enabled);
+}
+
+#[test]
 fn test_capabilities() {
 	assert_eq!(
 		p2p::types::Capabilities::from_bits_truncate(0b00000000 as u32),
@@ -52,11 +93,11 @@ fn test_capabilities() {
 	);
 
 	assert_eq!(
-		p2p::types::Capabilities::from_bits_truncate(0b1111 as u32),
+		p2p::types::Capabilities::from_bits_truncate(0b11111 as u32),
 		p2p::types::Capabilities::FULL_NODE
 	);
 	assert_eq!(
-		p2p::types::Capabilities::from_bits_truncate(0b00001111 as u32),
+		p2p::types::Capabilities::from_bits_truncate(0b00011111 as u32),
 		p2p::types::Capabilities::FULL_NODE
 	);
 	assert_eq!(
@@ -64,12 +105,12 @@ fn test_capabilities() {
 		p2p::types::Capabilities::FULL_NODE
 	);
 	assert_eq!(
-		p2p::types::Capabilities::from_bits_truncate(0b00101111 as u32),
+		p2p::types::Capabilities::from_bits_truncate(0b00111111 as u32),
 		p2p::types::Capabilities::FULL_NODE
 	);
 
 	assert!(
-		p2p::types::Capabilities::from_bits_truncate(0b00101111 as u32)
+		p2p::types::Capabilities::from_bits_truncate(0b00111111 as u32)
 			.contains(p2p::types::Capabilities::FULL_NODE)
 	);
 

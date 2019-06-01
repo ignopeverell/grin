@@ -25,6 +25,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 
 use chrono::prelude::*;
+use enum_primitive::FromPrimitive;
 use i2p;
 use i2p::net::{I2pAddr, I2pSocketAddr, I2pStream};
 
@@ -67,6 +68,7 @@ pub enum Error {
 	Serialization(ser::Error),
 	Connection(io::Error),
 	I2p(i2p::Error),
+	Socket(io::Error),
 	/// Header type does not match the expected message type
 	BadMessage,
 	MsgLen,
@@ -126,9 +128,20 @@ impl<T> From<mpsc::TrySendError<T>> for Error {
 /// way. Mostly boilerplate manipulating SocketAddr or I2pSocketAddr
 /// appropriately.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "peer_type", content = "peer_addr")]
 pub enum PeerAddr {
 	Socket(SocketAddr),
 	I2p(I2pSocketAddr),
+}
+
+/// Types of peer addreseses
+enum_from_primitive! {
+	#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+  pub enum PeerAddrType {
+	IPv4 = 0,
+	IPv6 = 1,
+	I2p = 2,
+  }
 }
 
 impl Writeable for PeerAddr {
@@ -137,13 +150,13 @@ impl Writeable for PeerAddr {
 			PeerAddr::Socket(SocketAddr::V4(sav4)) => {
 				ser_multiwrite!(
 					writer,
-					[write_u8, 0],
+					[write_u8, PeerAddrType::IPv4 as u8],
 					[write_fixed_bytes, &sav4.ip().octets().to_vec()],
 					[write_u16, sav4.port()]
 				);
 			}
 			PeerAddr::Socket(SocketAddr::V6(sav6)) => {
-				writer.write_u8(1)?;
+				writer.write_u8(PeerAddrType::IPv6 as u8)?;
 				for seg in &sav6.ip().segments() {
 					writer.write_u16(*seg)?;
 				}
@@ -152,7 +165,7 @@ impl Writeable for PeerAddr {
 			PeerAddr::I2p(i2p_addr) => {
 				ser_multiwrite!(
 					writer,
-					[write_u8, 2],
+					[write_u8, PeerAddrType::I2p as u8],
 					[write_bytes, &i2p_addr.dest().to_string().into_bytes()],
 					[write_u16, i2p_addr.port()]
 				);
@@ -164,36 +177,41 @@ impl Writeable for PeerAddr {
 
 impl Readable for PeerAddr {
 	fn read(reader: &mut dyn Reader) -> Result<PeerAddr, ser::Error> {
-		let addr_format = reader.read_u8()?;
-		if addr_format == 0 {
-			let ip = reader.read_fixed_bytes(4)?;
-			let port = reader.read_u16()?;
-			Ok(PeerAddr::Socket(SocketAddr::V4(SocketAddrV4::new(
-				Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]),
-				port,
-			))))
-		} else if addr_format == 1 {
-			let ip = try_iter_map_vec!(0..8, |_| reader.read_u16());
-			let port = reader.read_u16()?;
-			Ok(PeerAddr::Socket(SocketAddr::V6(SocketAddrV6::new(
-				Ipv6Addr::new(ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7]),
-				port,
-				0,
-				0,
-			))))
-		} else if addr_format == 2 {
-			let addr = reader.read_bytes_len_prefix()?;
-			if addr.len() > MAX_I2P_ADDR_LENGTH {
-				return Err(ser::Error::TooLargeReadErr);
+		if let Some(addr_format) = PeerAddrType::from_u8(reader.read_u8()?) {
+			match addr_format {
+				PeerAddrType::IPv4 => {
+					let ip = reader.read_fixed_bytes(4)?;
+					let port = reader.read_u16()?;
+					Ok(PeerAddr::Socket(SocketAddr::V4(SocketAddrV4::new(
+						Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]),
+						port,
+					))))
+				}
+				PeerAddrType::IPv6 => {
+					let ip = try_iter_map_vec!(0..8, |_| reader.read_u16());
+					let port = reader.read_u16()?;
+					Ok(PeerAddr::Socket(SocketAddr::V6(SocketAddrV6::new(
+						Ipv6Addr::new(ip[0], ip[1], ip[2], ip[3], ip[4], ip[5], ip[6], ip[7]),
+						port,
+						0,
+						0,
+					))))
+				}
+				PeerAddrType::I2p => {
+					let addr = reader.read_bytes_len_prefix()?;
+					if addr.len() > MAX_I2P_ADDR_LENGTH {
+						return Err(ser::Error::TooLargeReadErr);
+					}
+					let addr_str = str::from_utf8(&addr).map_err(|_| ser::Error::CorruptedData)?;
+					let port = reader.read_u16()?;
+					Ok(PeerAddr::I2p(I2pSocketAddr::new(
+						I2pAddr::new(&addr_str),
+						port,
+					)))
+				}
 			}
-			let addr_str = str::from_utf8(&addr).map_err(|_| ser::Error::CorruptedData)?;
-			let port = reader.read_u16()?;
-			Ok(PeerAddr::I2p(I2pSocketAddr::new(
-				I2pAddr::new(&addr_str),
-				port,
-			)))
 		} else {
-			Err(ser::Error::CorruptedData)
+			return Err(ser::Error::CorruptedData);
 		}
 	}
 }
@@ -225,12 +243,12 @@ impl PartialEq for PeerAddr {
 					return false;
 				}
 				if s.ip().is_loopback() {
-					s == &other.clone().unwrap_ip()
+					s == &other.clone().unwrap_ip().unwrap()
 				} else {
-					s.ip() == other.clone().unwrap_ip().ip()
+					s.ip() == other.clone().unwrap_ip().unwrap().ip()
 				}
 			}
-			PeerAddr::I2p(i2p_addr) => i2p_addr == &other.clone().unwrap_i2p(),
+			PeerAddr::I2p(i2p_addr) => i2p_addr == &other.clone().unwrap_i2p().unwrap(),
 		}
 	}
 }
@@ -288,19 +306,27 @@ impl PeerAddr {
 	}
 
 	/// Returns the underlying I2P address if this is one, otherwise panics
-	pub fn unwrap_i2p(self) -> I2pSocketAddr {
+	pub fn unwrap_i2p(self) -> Result<I2pSocketAddr, Error> {
 		if let PeerAddr::I2p(i2p_addr) = self {
-			return i2p_addr;
+			return Ok(i2p_addr);
+		} else {
+			return Err(Error::I2p(i2p::Error::from(io::Error::new(
+				io::ErrorKind::InvalidInput,
+				"not a valid I2P address",
+			))));
 		}
-		panic!("not an i2p address");
 	}
 
 	/// Returns the underlying IP address if this is one, otherwise panics
-	pub fn unwrap_ip(self) -> SocketAddr {
+	pub fn unwrap_ip(self) -> Result<SocketAddr, Error> {
 		if let PeerAddr::Socket(s) = self {
-			return s;
+			return Ok(s);
+		} else {
+			return Err(Error::Socket(io::Error::new(
+				io::ErrorKind::InvalidInput,
+				"not a valid IP address",
+			)));
 		}
-		panic!("not a IP address");
 	}
 }
 
@@ -378,6 +404,7 @@ impl Write for Stream {
 
 /// I2P configuration, if enabled
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "mode", content = "i2p_config")]
 pub enum I2pMode {
 	/// No I2P, only use classic TCP
 	Disabled,
@@ -529,7 +556,8 @@ bitflags! {
 		const FULL_NODE = Capabilities::HEADER_HIST.bits
 			| Capabilities::TXHASHSET_HIST.bits
 			| Capabilities::PEER_LIST.bits
-			| Capabilities::TX_KERNEL_HASH.bits;
+			| Capabilities::TX_KERNEL_HASH.bits
+	  | Capabilities::I2P_SUPPORTED.bits;
 	}
 }
 
